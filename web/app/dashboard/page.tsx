@@ -6,129 +6,65 @@ import {
   Calendar,
   List,
   PlusCircle,
-  Settings,
   RefreshCw,
   Users,
-  Network,
   CheckCircle2,
-  AlertCircle,
   Clock,
-  Sparkles,
-  Play,
   Eye,
   ExternalLink,
   X,
+  ShieldCheck,
+  AlertTriangle,
+  Play,
+  Share2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { IntegrationGraph } from "@/components/ui/integration-card";
 
-interface Job {
+interface Account {
   id: string;
-  tenantId: string;
   platform: string;
-  waktu: string;
+  username: string;
+  status: string;
+  lastCheck: string;
+  _count?: { posts: number };
+}
+
+interface Post {
+  id: string;
+  campaign: string;
   caption: string;
+  scheduledAt: string;
   status: string;
-}
-
-interface Tenant {
-  id: string;
-  nama: string;
-  ig?: string | null;
-  threads?: string | null;
-  tiktok?: string | null;
-  slotHarian: number;
-  aktif: boolean;
-}
-
-interface Campaign {
-  id: string;
-  nama: string;
-  status: string;
-  _count?: { jobs: number };
-}
-
-interface Session {
-  id: string;
-  platform: string;
-  tenantId: string;
-  live: boolean;
-  lastCheck?: string;
+  evidencePath?: string | null;
+  responseMessage?: string | null;
+  account?: Account | null;
 }
 
 export default function DashboardPage() {
-  const [activeTab, setActiveTab] = useState<"queue" | "composer" | "tenants" | "pipeline">("queue");
-  const [jobs, setJobs] = useState<Job[]>([]);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [sessions, setSessions] = useState<Session[]>([]);
+  const [activeTab, setActiveTab] = useState<"queue" | "accounts">("queue");
+  const [posts, setPosts] = useState<Post[]>([]);
+  const [accounts, setAccounts] = useState<Account[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
-  const [runningJobId, setRunningJobId] = useState<string | null>(null);
-  const [selectedEvidence, setSelectedEvidence] = useState<Job | null>(null);
-  const [executingAll, setExecutingAll] = useState(false);
+  const [selectedEvidence, setSelectedEvidence] = useState<Post | null>(null);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [jobsRes, tenantsRes, campaignsRes, sessionsRes] = await Promise.all([
-        fetch("/api/queue?status=all"),
-        fetch("/api/tenants"),
-        fetch("/api/campaigns"),
-        fetch("/api/sessions"),
+      const [postsRes, accountsRes] = await Promise.all([
+        fetch("/api/posts"),
+        fetch("/api/accounts"),
       ]);
-      const jobsData = await jobsRes.json();
-      const tenantsData = await tenantsRes.json();
-      const campaignsData = await campaignsRes.json();
-      const sessionsData = await sessionsRes.json();
+      const postsData = await postsRes.json();
+      const accountsData = await accountsRes.json();
 
-      setJobs(jobsData.data || []);
-      setTenants(tenantsData.data || []);
-      setCampaigns(campaignsData.data || []);
-      setSessions(sessionsData.data || []);
+      setPosts(postsData.data || []);
+      setAccounts(accountsData.data || []);
     } catch (err) {
-      console.error("Failed to fetch data:", err);
+      console.error("Failed to load dashboard data:", err);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handleRunJob = async (jobId: string) => {
-    setRunningJobId(jobId);
-    try {
-      const res = await fetch(`/api/jobs/${jobId}/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dry_run: true }),
-      });
-      if (res.ok) {
-        await fetchData();
-      }
-    } catch (err) {
-      console.error("Failed to run job:", err);
-    } finally {
-      setRunningJobId(null);
-    }
-  };
-
-  const handleRunAllQueued = async () => {
-    const queued = jobs.filter((j) => j.status === "queued");
-    if (queued.length === 0) return;
-    setExecutingAll(true);
-    try {
-      for (const j of queued) {
-        await fetch(`/api/jobs/${j.id}/run`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dry_run: true }),
-        });
-      }
-      await fetchData();
-    } catch (err) {
-      console.error("Failed to run all queued:", err);
-    } finally {
-      setExecutingAll(false);
     }
   };
 
@@ -136,21 +72,19 @@ export default function DashboardPage() {
     fetchData();
   }, []);
 
-  const queuedJobs = jobs.filter((j) => j.status === "queued");
-  const runningJobs = jobs.filter((j) => j.status === "running");
-  const doneJobs = jobs.filter((j) => j.status === "done");
-  const failedJobs = jobs.filter((j) => j.status === "failed");
-  const activeTenants = tenants.filter((t) => t.aktif).length;
-  const successRate = jobs.length > 0 ? Math.round((doneJobs.length / jobs.length) * 100) : 0;
+  const scheduledPosts = posts.filter((p) => p.status === "scheduled");
+  const postedPosts = posts.filter((p) => p.status === "posted");
+  const failedPosts = posts.filter((p) => p.status === "failed");
+  const connectedAccounts = accounts.filter((a) => a.status === "connected");
 
-  const filteredJobs = jobs.filter((j) => {
+  const filteredPosts = posts.filter((p) => {
     if (statusFilter === "all") return true;
-    return j.status === statusFilter;
+    return p.status === statusFilter;
   });
 
   return (
     <div className="min-h-screen bg-muted/20 text-foreground">
-      {/* Top Navigation */}
+      {/* Top Navbar */}
       <nav className="border-b bg-background sticky top-0 z-30 shadow-xs">
         <div className="container mx-auto px-4 lg:px-8">
           <div className="flex h-16 items-center justify-between">
@@ -159,8 +93,12 @@ export default function DashboardPage() {
                 <div className="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-primary-foreground font-bold text-sm shadow-sm">
                   AS
                 </div>
-                <span className="text-xl font-bold tracking-tight">AutoSosmed</span>
+                <div>
+                  <span className="text-xl font-bold tracking-tight block leading-tight">AutoSosmed</span>
+                  <span className="text-[10px] text-muted-foreground block -mt-0.5">Internal Team Tool v1</span>
+                </div>
               </Link>
+
               <div className="hidden md:flex items-center gap-1">
                 <button
                   onClick={() => setActiveTab("queue")}
@@ -171,43 +109,22 @@ export default function DashboardPage() {
                   }`}
                 >
                   <List className="h-4 w-4" />
-                  Antrean Jobs ({jobs.length})
+                  Antrean Postingan ({posts.length})
                 </button>
                 <button
-                  onClick={() => setActiveTab("composer")}
+                  onClick={() => setActiveTab("accounts")}
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    activeTab === "composer"
-                      ? "bg-primary/10 text-primary font-semibold"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Calendar className="h-4 w-4" />
-                  Campaign Composer
-                </button>
-                <button
-                  onClick={() => setActiveTab("tenants")}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    activeTab === "tenants"
+                    activeTab === "accounts"
                       ? "bg-primary/10 text-primary font-semibold"
                       : "text-muted-foreground hover:text-foreground"
                   }`}
                 >
                   <Users className="h-4 w-4" />
-                  Tenants ({tenants.length})
-                </button>
-                <button
-                  onClick={() => setActiveTab("pipeline")}
-                  className={`flex items-center gap-2 px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-                    activeTab === "pipeline"
-                      ? "bg-primary/10 text-primary font-semibold"
-                      : "text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  <Network className="h-4 w-4" />
-                  Pipeline Graph
+                  Akun Terhubung ({accounts.length})
                 </button>
               </div>
             </div>
+
             <div className="flex items-center gap-3">
               <Button
                 variant="outline"
@@ -218,34 +135,40 @@ export default function DashboardPage() {
               >
                 <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin text-primary" : ""}`} />
               </Button>
-              <Button
-                onClick={() => setActiveTab("composer")}
-                className="rounded-full shadow-sm"
-              >
-                <PlusCircle className="h-4 w-4 mr-1.5" />
-                New Campaign
-              </Button>
+              <Link href="/connect">
+                <Button variant="outline" className="rounded-full text-xs">
+                  <Users className="h-3.5 w-3.5 mr-1.5" />
+                  + Akun
+                </Button>
+              </Link>
+              <Link href="/compose">
+                <Button className="rounded-full shadow-sm text-xs">
+                  <PlusCircle className="h-3.5 w-3.5 mr-1.5" />
+                  Jadwalkan Post
+                </Button>
+              </Link>
             </div>
           </div>
         </div>
       </nav>
 
-      {/* Main Content */}
+      {/* Main Container */}
       <main className="container mx-auto px-4 lg:px-8 py-8 space-y-8">
-        {/* Stats Overview */}
+        {/* Metric Cards */}
         <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-4">
           <Card className="hover:shadow-sm transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Antrean Queued
+                Antrean Scheduled
               </CardTitle>
               <Clock className="h-4 w-4 text-primary" />
             </CardHeader>
             <CardContent>
-              <div className="text-3xl font-bold tracking-tight text-primary">{queuedJobs.length}</div>
+              <div className="text-3xl font-bold tracking-tight text-primary">
+                {scheduledPosts.length}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {runningJobs.length > 0 ? `${runningJobs.length} sedang running • ` : ""}
-                Total {jobs.length} jobs hari ini
+                Menunggu eksekusi cron 2-menit
               </p>
             </CardContent>
           </Card>
@@ -253,46 +176,50 @@ export default function DashboardPage() {
           <Card className="hover:shadow-sm transition-shadow">
             <CardHeader className="flex flex-row items-center justify-between pb-2">
               <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Lini Bisnis / Tenant
-              </CardTitle>
-              <Users className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold tracking-tight">{activeTenants}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                {activeTenants} aktif dari total {tenants.length} tenant
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-sm transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Campaigns
-              </CardTitle>
-              <Calendar className="h-4 w-4 text-primary" />
-            </CardHeader>
-            <CardContent>
-              <div className="text-3xl font-bold tracking-tight">{campaigns.length}</div>
-              <p className="text-xs text-muted-foreground mt-1">
-                Total campaign terdaftar
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card className="hover:shadow-sm transition-shadow">
-            <CardHeader className="flex flex-row items-center justify-between pb-2">
-              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Success Rate
+                Total Posted
               </CardTitle>
               <CheckCircle2 className="h-4 w-4 text-green-600" />
             </CardHeader>
             <CardContent>
               <div className="text-3xl font-bold tracking-tight">
-                {jobs.length > 0 ? `${successRate}%` : "100%"}
+                {postedPosts.length}
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                {doneJobs.length} berhasil • {failedJobs.length} gagal
+                Sukses dipublikasikan via Playwright
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-sm transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Akun Terkoneksi
+              </CardTitle>
+              <ShieldCheck className="h-4 w-4 text-primary" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold tracking-tight">
+                {connectedAccounts.length}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                dari total {accounts.length} akun terdaftar
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover:shadow-sm transition-shadow">
+            <CardHeader className="flex flex-row items-center justify-between pb-2">
+              <CardTitle className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                Gagal / Warning
+              </CardTitle>
+              <AlertTriangle className="h-4 w-4 text-amber-500" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold tracking-tight">
+                {failedPosts.length}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">
+                {failedPosts.length === 0 ? "Semua berjalan normal" : "Perlu pengecekan"}
               </p>
             </CardContent>
           </Card>
@@ -300,757 +227,252 @@ export default function DashboardPage() {
 
         {/* Tab 1: Queue Table */}
         {activeTab === "queue" && (
-          <div className="space-y-6">
-            <Card>
-              <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4">
-                <div>
-                  <CardTitle className="text-xl">Antrean Jadwal Posting</CardTitle>
-                  <CardDescription>
-                    Jobs hasil fan-out campaign dengan delay anti-ban + jitter per platform
-                  </CardDescription>
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg text-xs font-medium">
-                    {["all", "queued", "running", "done", "failed"].map((st) => (
-                      <button
-                        key={st}
-                        onClick={() => setStatusFilter(st)}
-                        className={`px-3 py-1 rounded-md capitalize transition-colors ${
-                          statusFilter === st
-                            ? "bg-background text-foreground shadow-xs font-semibold"
-                            : "text-muted-foreground hover:text-foreground"
-                        }`}
-                      >
-                        {st} {st !== "all" && `(${jobs.filter((j) => j.status === st).length})`}
-                      </button>
-                    ))}
-                  </div>
-                  {queuedJobs.length > 0 && (
-                    <Button
-                      size="sm"
-                      onClick={handleRunAllQueued}
-                      disabled={executingAll}
-                      className="rounded-lg text-xs shadow-xs"
-                    >
-                      <Play className={`h-3.5 w-3.5 mr-1 ${executingAll ? "animate-spin" : ""}`} />
-                      {executingAll ? "Memproses Semua..." : `Jalankan Semua (${queuedJobs.length})`}
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="rounded-lg border overflow-hidden">
-                  <div className="overflow-x-auto">
-                    <table className="w-full text-sm">
-                      <thead className="border-b bg-muted/40 text-muted-foreground text-xs uppercase tracking-wider">
-                        <tr>
-                          <th className="px-4 py-3 text-left font-semibold">Waktu Stagger</th>
-                          <th className="px-4 py-3 text-left font-semibold">Tenant</th>
-                          <th className="px-4 py-3 text-left font-semibold">Platform</th>
-                          <th className="px-4 py-3 text-left font-semibold">Varian Caption</th>
-                          <th className="px-4 py-3 text-left font-semibold">Status</th>
-                          <th className="px-4 py-3 text-right font-semibold">Aksi</th>
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {filteredJobs.length === 0 ? (
-                          <tr>
-                            <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
-                              Belum ada jobs dengan status ini. Buat campaign baru untuk fan-out antrean.
-                            </td>
-                          </tr>
-                        ) : (
-                          filteredJobs.map((job) => (
-                            <tr key={job.id} className="hover:bg-muted/20 transition-colors">
-                              <td className="px-4 py-3 font-mono text-xs font-medium text-foreground whitespace-nowrap">
-                                {job.waktu}
-                              </td>
-                              <td className="px-4 py-3 font-semibold text-foreground whitespace-nowrap">
-                                {job.tenantId}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <span
-                                  className={`inline-flex items-center rounded-md px-2 py-0.5 text-xs font-semibold ${
-                                    job.platform === "ig"
-                                      ? "bg-pink-500/10 text-pink-600 dark:text-pink-400"
-                                      : job.platform === "tiktok"
-                                      ? "bg-cyan-500/10 text-cyan-600 dark:text-cyan-400"
-                                      : "bg-purple-500/10 text-primary"
-                                  }`}
-                                >
-                                  {job.platform.toUpperCase()}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 max-w-md truncate text-muted-foreground text-xs">
-                                {job.caption}
-                              </td>
-                              <td className="px-4 py-3 whitespace-nowrap">
-                                <span
-                                  className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                    job.status === "done"
-                                      ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300"
-                                      : job.status === "running"
-                                      ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
-                                      : job.status === "failed"
-                                      ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
-                                      : "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
-                                  }`}
-                                >
-                                  {job.status}
-                                </span>
-                              </td>
-                              <td className="px-4 py-3 text-right whitespace-nowrap">
-                                {job.status === "queued" ? (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleRunJob(job.id)}
-                                    disabled={runningJobId === job.id}
-                                    className="h-7 text-xs rounded-md px-2.5 hover:bg-primary hover:text-primary-foreground"
-                                  >
-                                    <Play className={`h-3 w-3 mr-1 ${runningJobId === job.id ? "animate-spin" : ""}`} />
-                                    {runningJobId === job.id ? "Running..." : "Run"}
-                                  </Button>
-                                ) : job.status === "done" ? (
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => setSelectedEvidence(job)}
-                                    className="h-7 text-xs rounded-md px-2.5 text-primary hover:bg-primary/10"
-                                  >
-                                    <Eye className="h-3 w-3 mr-1" />
-                                    Bukti Post
-                                  </Button>
-                                ) : (
-                                  <Button
-                                    size="sm"
-                                    variant="outline"
-                                    onClick={() => handleRunJob(job.id)}
-                                    disabled={runningJobId === job.id}
-                                    className="h-7 text-xs rounded-md px-2.5 text-muted-foreground"
-                                  >
-                                    Retry
-                                  </Button>
-                                )}
-                              </td>
-                            </tr>
-                          ))
-                        )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-
-            {/* Evidence Modal Popup */}
-            {selectedEvidence && (
-              <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-4">
-                <div className="relative w-full max-w-lg rounded-2xl border bg-card p-6 shadow-2xl space-y-4">
-                  <div className="flex items-center justify-between pb-2 border-b">
-                    <div>
-                      <h3 className="font-bold text-lg text-foreground">Bukti Eksekusi Posting</h3>
-                      <p className="text-xs text-muted-foreground">
-                        {selectedEvidence.platform.toUpperCase()} • {selectedEvidence.tenantId} • Job {selectedEvidence.id}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() => setSelectedEvidence(null)}
-                      className="rounded-full p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground"
-                    >
-                      <X className="h-5 w-5" />
-                    </button>
-                  </div>
-
-                  <div className="space-y-3">
-                    <div className="rounded-xl border bg-muted/30 p-2 overflow-hidden flex items-center justify-center">
-                      <img
-                        src={`/api/evidence/${selectedEvidence.id}`}
-                        alt="Screenshot Evidence"
-                        className="rounded-lg shadow-xs max-h-80 w-auto object-contain bg-background"
-                      />
-                    </div>
-
-                    <div className="p-3 rounded-lg bg-muted/30 border text-xs space-y-1">
-                      <span className="font-semibold block text-foreground">Varian Caption yang Diposting:</span>
-                      <p className="text-muted-foreground whitespace-pre-wrap">{selectedEvidence.caption}</p>
-                    </div>
-                  </div>
-
-                  <div className="flex justify-end gap-2 pt-2 border-t">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setSelectedEvidence(null)}
-                    >
-                      Tutup
-                    </Button>
-                    <Button size="sm" asChild>
-                      <a
-                        href={`https://${selectedEvidence.platform === "threads" ? "threads.net" : selectedEvidence.platform === "tiktok" ? "tiktok.com" : "instagram.com"}/@${selectedEvidence.tenantId}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1.5"
-                      >
-                        Buka Akun Target
-                        <ExternalLink className="h-3.5 w-3.5" />
-                      </a>
-                    </Button>
-                  </div>
-                </div>
+          <Card>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4">
+              <div>
+                <CardTitle className="text-xl">Antrean Postingan Terjadwal</CardTitle>
+                <CardDescription>
+                  Daftar konten yang dijadwalkan untuk diposting otomatis via Playwright
+                </CardDescription>
               </div>
-            )}
-          </div>
-        )}
-
-        {/* Tab 2: Campaign Composer */}
-        {activeTab === "composer" && (
-          <div className="grid gap-8 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <CampaignComposer
-                onSuccess={() => {
-                  fetchData();
-                  setActiveTab("queue");
-                }}
-                tenants={tenants}
-              />
-            </div>
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Tips Spintax & Fan-Out</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3 text-sm text-muted-foreground">
-                  <p>
-                    Format Spintax: <code className="text-primary font-mono font-semibold">{"{A|B|C}"}</code> akan dipilih acak dan deterministik per tenant & slot sehingga tiap akun memposting kalimat berbeda.
-                  </p>
-                  <p>
-                    Contoh placeholder:
-                  </p>
-                  <ul className="list-disc pl-4 space-y-1 text-xs">
-                    <li><code className="text-foreground">{"{Coba|Nikmati|Kenalin}"}</code></li>
-                    <li><code className="text-foreground">{"{diskon 50%|promo hemat|gratis ongkir}"}</code></li>
-                    <li><code className="text-foreground">{"#BisnisKeren #PromoToday"}</code></li>
-                  </ul>
-                  <div className="pt-3 border-t">
-                    <span className="text-xs font-semibold text-foreground block mb-1">
-                      Anti-Ban Stagger:
-                    </span>
-                    <p className="text-xs">
-                      Sistem otomatis menerapkan jeda 90m (IG), 45m (Threads), 120m (TikTok) + jitter ±25m di rentang jam 07:00–22:00.
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-          </div>
-        )}
-
-        {/* Tab 3: Tenants Management */}
-        {activeTab === "tenants" && (
-          <div className="grid gap-8 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-xl">Daftar Lini Bisnis & Akun</CardTitle>
-                  <CardDescription>
-                    Kelola profil produk dan akun sosial media yang terhubung
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="rounded-lg border overflow-hidden">
-                    <table className="w-full text-sm">
-                      <thead className="border-b bg-muted/40 text-muted-foreground text-xs uppercase tracking-wider">
+              <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg text-xs font-medium">
+                {["all", "scheduled", "processing", "posted", "failed"].map((st) => (
+                  <button
+                    key={st}
+                    onClick={() => setStatusFilter(st)}
+                    className={`px-3 py-1 rounded-md capitalize transition-colors ${
+                      statusFilter === st
+                        ? "bg-background text-foreground shadow-xs font-semibold"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {st} {st !== "all" && `(${posts.filter((p) => p.status === st).length})`}
+                  </button>
+                ))}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead className="border-b bg-muted/40 text-muted-foreground text-xs uppercase tracking-wider">
+                      <tr>
+                        <th className="px-4 py-3 text-left font-semibold">Waktu Jadwal</th>
+                        <th className="px-4 py-3 text-left font-semibold">Akun Platform</th>
+                        <th className="px-4 py-3 text-left font-semibold">Campaign</th>
+                        <th className="px-4 py-3 text-left font-semibold">Caption</th>
+                        <th className="px-4 py-3 text-left font-semibold">Status</th>
+                        <th className="px-4 py-3 text-right font-semibold">Aksi</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {filteredPosts.length === 0 ? (
                         <tr>
-                          <th className="px-4 py-3 text-left">ID</th>
-                          <th className="px-4 py-3 text-left">Nama Lini Bisnis</th>
-                          <th className="px-4 py-3 text-left">Slot Harian</th>
-                          <th className="px-4 py-3 text-left">Status</th>
+                          <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
+                            Belum ada postingan dengan status ini.{" "}
+                            <Link href="/compose" className="text-primary font-semibold hover:underline">
+                              Buat postingan baru →
+                            </Link>
+                          </td>
                         </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border">
-                        {tenants.map((t) => (
-                          <tr key={t.id} className="hover:bg-muted/20">
-                            <td className="px-4 py-3 font-mono text-xs font-semibold">{t.id}</td>
-                            <td className="px-4 py-3 font-medium text-foreground">{t.nama}</td>
-                            <td className="px-4 py-3 text-muted-foreground">{t.slotHarian} slot/hari</td>
-                            <td className="px-4 py-3">
+                      ) : (
+                        filteredPosts.map((post) => (
+                          <tr key={post.id} className="hover:bg-muted/20 transition-colors">
+                            <td className="px-4 py-3 font-mono text-xs text-foreground whitespace-nowrap">
+                              {new Date(post.scheduledAt).toLocaleString("id-ID", {
+                                dateStyle: "short",
+                                timeStyle: "short",
+                              })}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
+                              {post.account ? (
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-xs uppercase font-bold text-primary px-1.5 py-0.5 rounded bg-primary/10">
+                                    {post.account.platform}
+                                  </span>
+                                  <span className="font-semibold text-xs">@{post.account.username}</span>
+                                </div>
+                              ) : (
+                                <span className="text-muted-foreground text-xs italic">Tanpa akun</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-foreground text-xs whitespace-nowrap">
+                              {post.campaign}
+                            </td>
+                            <td className="px-4 py-3 max-w-sm truncate text-muted-foreground text-xs">
+                              {post.caption}
+                            </td>
+                            <td className="px-4 py-3 whitespace-nowrap">
                               <span
                                 className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
-                                  t.aktif
+                                  post.status === "posted"
                                     ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300"
-                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-400"
+                                    : post.status === "processing"
+                                    ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300"
+                                    : post.status === "failed"
+                                    ? "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                                    : "bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300"
                                 }`}
                               >
-                                {t.aktif ? "Aktif" : "Nonaktif"}
+                                {post.status}
                               </span>
                             </td>
+                            <td className="px-4 py-3 text-right whitespace-nowrap">
+                              {post.status === "posted" ? (
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => setSelectedEvidence(post)}
+                                  className="h-7 text-xs rounded-md px-2.5 text-primary hover:bg-primary/10"
+                                >
+                                  <Eye className="h-3 w-3 mr-1" />
+                                  Bukti Post
+                                </Button>
+                              ) : (
+                                <span className="text-[11px] text-muted-foreground font-mono">
+                                  Cron auto
+                                </span>
+                              )}
+                            </td>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
-            <div>
-              <AddTenantForm onSuccess={fetchData} />
-            </div>
-          </div>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
         )}
 
-        {/* Tab 4: Pipeline Graph */}
-        {activeTab === "pipeline" && (
-          <div className="grid gap-8 lg:grid-cols-3">
-            <div className="lg:col-span-2">
-              <Card className="overflow-hidden">
-                <CardHeader>
-                  <CardTitle className="text-xl">Network Pipeline Arsitektur</CardTitle>
-                  <CardDescription>
-                    Visualisasi relasi real-time antara Core Scheduler, AI Engine, dan Akun Media Sosial
-                  </CardDescription>
-                </CardHeader>
-                <div className="p-4 sm:p-6 bg-muted/10">
-                  <div className="h-[410px] w-full max-w-xl mx-auto rounded-xl border bg-background overflow-hidden relative shadow-sm">
-                    <IntegrationGraph />
-                  </div>
+        {/* Tab 2: Accounts List */}
+        {activeTab === "accounts" && (
+          <Card>
+            <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 pb-4">
+              <div>
+                <CardTitle className="text-xl">Daftar Akun Terhubung</CardTitle>
+                <CardDescription>
+                  Status sesi Playwright untuk seluruh akun media sosial internal tim
+                </CardDescription>
+              </div>
+              <Link href="/connect">
+                <Button size="sm" className="rounded-full shadow-xs">
+                  <PlusCircle className="h-3.5 w-3.5 mr-1" />
+                  Hubungkan Akun Baru
+                </Button>
+              </Link>
+            </CardHeader>
+            <CardContent>
+              <div className="rounded-lg border overflow-hidden">
+                <table className="w-full text-sm">
+                  <thead className="border-b bg-muted/40 text-muted-foreground text-xs uppercase tracking-wider">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Platform</th>
+                      <th className="px-4 py-3 text-left">Username</th>
+                      <th className="px-4 py-3 text-left">Status Sesi</th>
+                      <th className="px-4 py-3 text-left">Pengecekan Terakhir</th>
+                      <th className="px-4 py-3 text-right">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border">
+                    {accounts.length === 0 ? (
+                      <tr>
+                        <td colSpan={5} className="px-4 py-16 text-center text-muted-foreground">
+                          Belum ada akun terhubung. Hubungkan akun Instagram, Threads, atau TikTok tim Anda.
+                        </td>
+                      </tr>
+                    ) : (
+                      accounts.map((acc) => (
+                        <tr key={acc.id} className="hover:bg-muted/20 transition-colors">
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span className="font-bold text-xs uppercase px-2 py-0.5 rounded bg-primary/10 text-primary">
+                              {acc.platform}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 font-semibold text-foreground text-xs">
+                            @{acc.username}
+                          </td>
+                          <td className="px-4 py-3 whitespace-nowrap">
+                            <span
+                              className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
+                                acc.status === "connected"
+                                  ? "bg-green-100 text-green-800 dark:bg-green-950 dark:text-green-300"
+                                  : "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300"
+                              }`}
+                            >
+                              {acc.status}
+                            </span>
+                          </td>
+                          <td className="px-4 py-3 text-xs text-muted-foreground whitespace-nowrap">
+                            {new Date(acc.lastCheck).toLocaleString("id-ID", {
+                              dateStyle: "short",
+                              timeStyle: "short",
+                            })}
+                          </td>
+                          <td className="px-4 py-3 text-right whitespace-nowrap">
+                            <Link href={`/connect?platform=${acc.platform}&username=${acc.username}`}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                className="h-7 text-xs rounded-md px-2.5"
+                              >
+                                Re-login
+                              </Button>
+                            </Link>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Modal Evidence Popup */}
+        {selectedEvidence && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-4">
+            <div className="relative w-full max-w-lg rounded-2xl border bg-card p-6 shadow-2xl space-y-4">
+              <div className="flex items-center justify-between pb-2 border-b">
+                <div>
+                  <h3 className="font-bold text-lg text-foreground">Bukti Eksekusi Playwright</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Post ID: {selectedEvidence.id} • Campaign: {selectedEvidence.campaign}
+                  </p>
                 </div>
-              </Card>
-            </div>
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Koneksi Sesi Browser</CardTitle>
-                  <CardDescription>Status persistent context Playwright</CardDescription>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  {sessions.length === 0 ? (
-                    <div className="text-sm text-muted-foreground py-4 text-center">
-                      Belum ada sesi browser aktif. Sesi dibuat otomatis saat worker mengeksekusi job pertama.
-                    </div>
-                  ) : (
-                    sessions.map((s) => (
-                      <div
-                        key={s.id}
-                        className="flex items-center justify-between p-2.5 rounded-lg border bg-muted/20 text-xs"
-                      >
-                        <div>
-                          <span className="font-semibold block text-foreground">{s.id}</span>
-                          <span className="text-muted-foreground uppercase">{s.platform}</span>
-                        </div>
-                        <span
-                          className={`px-2 py-0.5 rounded-full font-medium ${
-                            s.live ? "bg-green-100 text-green-700" : "bg-red-100 text-red-700"
-                          }`}
-                        >
-                          {s.live ? "Live" : "Dead"}
-                        </span>
-                      </div>
-                    ))
-                  )}
-                </CardContent>
-              </Card>
+                <button
+                  onClick={() => setSelectedEvidence(null)}
+                  className="rounded-full p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+
+              <div className="space-y-3">
+                <div className="rounded-xl border bg-muted/30 p-2 overflow-hidden flex items-center justify-center">
+                  <img
+                    src={`/api/evidence/${selectedEvidence.id}`}
+                    alt="Screenshot Evidence"
+                    className="rounded-lg shadow-xs max-h-80 w-auto object-contain bg-background"
+                  />
+                </div>
+
+                <div className="p-3 rounded-lg bg-muted/30 border text-xs space-y-1">
+                  <span className="font-semibold block text-foreground">Hasil Eksekusi:</span>
+                  <p className="text-muted-foreground">{selectedEvidence.responseMessage || "Sukses diposting"}</p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2 pt-2 border-t">
+                <Button variant="outline" size="sm" onClick={() => setSelectedEvidence(null)}>
+                  Tutup
+                </Button>
+              </div>
             </div>
           </div>
         )}
       </main>
     </div>
-  );
-}
-
-function CampaignComposer({ onSuccess, tenants }: { onSuccess: () => void; tenants: Tenant[] }) {
-  const [nama, setNama] = useState("");
-  const [captionTemplate, setCaptionTemplate] = useState("");
-  const [selectedTenants, setSelectedTenants] = useState<string[]>([]);
-  const [platforms, setPlatforms] = useState<string[]>(["ig", "threads"]);
-  const [submitting, setSubmitting] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-
-  // AI Generator state
-  const [aiBrief, setAiBrief] = useState("");
-  const [generatingAi, setGeneratingAi] = useState(false);
-  const [aiError, setAiError] = useState<string | null>(null);
-
-  const handleGenerateAi = async () => {
-    if (!aiBrief.trim()) return;
-    setGeneratingAi(true);
-    setAiError(null);
-    try {
-      const res = await fetch("/api/ai/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brief: aiBrief }),
-      });
-      const data = await res.json();
-      if (res.ok && data?.data?.template) {
-        setCaptionTemplate(data.data.template);
-        if (!nama) {
-          setNama(aiBrief.slice(0, 30));
-        }
-      } else {
-        setAiError(data.detail || "Gagal generate template AI");
-      }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      setAiError(errMsg);
-    } finally {
-      setGeneratingAi(false);
-    }
-  };
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!nama || !captionTemplate || selectedTenants.length === 0) return;
-
-    setSubmitting(true);
-    setMessage(null);
-    try {
-      const res = await fetch("/api/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          nama,
-          caption_template: captionTemplate,
-          target_tenants: selectedTenants,
-          platforms,
-        }),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        setMessage(`Campaign "${nama}" berhasil dibuat dengan ${data.jobs} antrean jobs!`);
-        setNama("");
-        setCaptionTemplate("");
-        setSelectedTenants([]);
-        setTimeout(() => {
-          onSuccess();
-        }, 1200);
-      } else {
-        setMessage(`Error: ${data.detail || "Gagal membuat campaign"}`);
-      }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      setMessage(`Error: ${errMsg}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-xl">Composer Campaign Baru</CardTitle>
-        <CardDescription>
-          Fan-out otomatis ke multi-tenant dan multi-platform dengan variasi caption unik
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        {message && (
-          <div
-            className={`mb-6 p-4 rounded-lg text-sm font-medium ${
-              message.startsWith("Error")
-                ? "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300"
-                : "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-300"
-            }`}
-          >
-            {message}
-          </div>
-        )}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label className="block text-sm font-semibold mb-2">Nama Campaign</label>
-            <input
-              type="text"
-              value={nama}
-              onChange={(e) => setNama(e.target.value)}
-              placeholder="Contoh: Launch Promo Akhir Pekan"
-              className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-xs"
-              required
-            />
-          </div>
-
-          {/* AI Generator Box */}
-          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
-            <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5" />
-                AI Spintax Generator (9router / Gemini 3.8 Flash)
-              </span>
-              <span className="text-[10px] text-muted-foreground bg-background/80 px-2 py-0.5 rounded-full border">
-                Local Gateway
-              </span>
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <input
-                type="text"
-                value={aiBrief}
-                onChange={(e) => setAiBrief(e.target.value)}
-                placeholder="Ide campaign, misal: Promo kopi susu gula aren diskon 30% weekend..."
-                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-              />
-              <Button
-                type="button"
-                size="sm"
-                onClick={handleGenerateAi}
-                disabled={generatingAi || !aiBrief.trim()}
-                className="rounded-lg text-xs font-semibold whitespace-nowrap"
-              >
-                {generatingAi ? (
-                  <>
-                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
-                    Generating...
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="h-3 w-3 mr-1" />
-                    Generate Spintax
-                  </>
-                )}
-              </Button>
-            </div>
-            {aiError && <p className="text-xs text-red-500 font-medium">{aiError}</p>}
-          </div>
-
-          <div>
-            <div className="flex items-center justify-between mb-2">
-              <label className="block text-sm font-semibold">
-                Template Caption (Spintax)
-              </label>
-              <button
-                type="button"
-                onClick={() =>
-                  setCaptionTemplate(
-                    "{Coba|Kenalin} produk baru kami — {diskon 20%|promo spesial}! Dapatkan segera di link bio #Promo #Viral"
-                  )
-                }
-                className="text-xs text-primary hover:underline font-medium inline-flex items-center gap-1"
-              >
-                <Sparkles className="h-3 w-3" />
-                Gunakan Contoh
-              </button>
-            </div>
-            <textarea
-              value={captionTemplate}
-              onChange={(e) => setCaptionTemplate(e.target.value)}
-              placeholder="{Coba|Kenalin} {produk} — {diskon|gratis ongkir}! #{produkTag}"
-              rows={4}
-              className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary font-mono shadow-xs"
-              required
-            />
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Pilih Target Lini Bisnis ({selectedTenants.length} terpilih)
-            </label>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5">
-              {tenants.map((t) => (
-                <label
-                  key={t.id}
-                  className={`flex items-center gap-2 p-3 rounded-lg border cursor-pointer transition-all ${
-                    selectedTenants.includes(t.id)
-                      ? "border-primary bg-primary/5 text-foreground font-semibold"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted/30"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={selectedTenants.includes(t.id)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setSelectedTenants([...selectedTenants, t.id]);
-                      } else {
-                        setSelectedTenants(selectedTenants.filter((id) => id !== t.id));
-                      }
-                    }}
-                    className="rounded border-border accent-primary"
-                  />
-                  <span className="text-sm truncate">{t.nama}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2">Target Platform</label>
-            <div className="flex flex-wrap gap-4">
-              {["ig", "threads", "tiktok"].map((p) => (
-                <label
-                  key={p}
-                  className={`flex items-center gap-2 px-4 py-2 rounded-lg border cursor-pointer transition-all ${
-                    platforms.includes(p)
-                      ? "border-primary bg-primary/5 text-primary font-semibold"
-                      : "border-border bg-background text-muted-foreground hover:bg-muted/30"
-                  }`}
-                >
-                  <input
-                    type="checkbox"
-                    checked={platforms.includes(p)}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setPlatforms([...platforms, p]);
-                      } else {
-                        setPlatforms(platforms.filter((pl) => pl !== p));
-                      }
-                    }}
-                    className="rounded border-border accent-primary"
-                  />
-                  <span className="text-sm uppercase tracking-wider">{p}</span>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          <Button
-            type="submit"
-            disabled={submitting || !nama || !captionTemplate || selectedTenants.length === 0}
-            className="w-full rounded-full py-3 font-semibold shadow-sm"
-          >
-            {submitting ? "Memproses Fan-out Antrean..." : "Generate & Jadwalkan Posting"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
-  );
-}
-
-function AddTenantForm({ onSuccess }: { onSuccess: () => void }) {
-  const [id, setId] = useState("");
-  const [nama, setNama] = useState("");
-  const [ig, setIg] = useState("");
-  const [threads, setThreads] = useState("");
-  const [tiktok, setTiktok] = useState("");
-  const [submitting, setSubmitting] = useState(false);
-  const [status, setStatus] = useState<string | null>(null);
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!id || !nama) return;
-
-    setSubmitting(true);
-    setStatus(null);
-    try {
-      const res = await fetch("/api/tenants", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: id.toLowerCase().replace(/\s+/g, "-"),
-          nama,
-          ig: ig || null,
-          threads: threads || null,
-          tiktok: tiktok || null,
-          slot_harian: 3,
-        }),
-      });
-      if (res.ok) {
-        setStatus("Tenant berhasil ditambahkan!");
-        setId("");
-        setNama("");
-        setIg("");
-        setThreads("");
-        setTiktok("");
-        onSuccess();
-      } else {
-        const err = await res.json();
-        setStatus(`Error: ${err.detail || "Gagal menambah tenant"}`);
-      }
-    } catch (err: unknown) {
-      const errMsg = err instanceof Error ? err.message : String(err);
-      setStatus(`Error: ${errMsg}`);
-    } finally {
-      setSubmitting(false);
-    }
-  };
-
-  return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-lg">Tambah Tenant Baru</CardTitle>
-        <CardDescription>Daftarkan brand/produk baru ke sistem</CardDescription>
-      </CardHeader>
-      <CardContent>
-        {status && (
-          <div
-            className={`mb-4 p-3 rounded-lg text-xs font-medium ${
-              status.startsWith("Error")
-                ? "bg-red-50 text-red-800 dark:bg-red-950 dark:text-red-300"
-                : "bg-green-50 text-green-800 dark:bg-green-950 dark:text-green-300"
-            }`}
-          >
-            {status}
-          </div>
-        )}
-        <form onSubmit={handleSubmit} className="space-y-4">
-          <div>
-            <label className="block text-xs font-semibold mb-1 text-muted-foreground">
-              Slug ID (unik)
-            </label>
-            <input
-              type="text"
-              value={id}
-              onChange={(e) => setId(e.target.value)}
-              placeholder="kopi-c"
-              className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold mb-1 text-muted-foreground">
-              Nama Brand / Produk
-            </label>
-            <input
-              type="text"
-              value={nama}
-              onChange={(e) => setNama(e.target.value)}
-              placeholder="Kopi Kenangan Senja"
-              className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold mb-1 text-muted-foreground">
-              Username Instagram
-            </label>
-            <input
-              type="text"
-              value={ig}
-              onChange={(e) => setIg(e.target.value)}
-              placeholder="@kopisenja"
-              className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold mb-1 text-muted-foreground">
-              Username Threads
-            </label>
-            <input
-              type="text"
-              value={threads}
-              onChange={(e) => setThreads(e.target.value)}
-              placeholder="@kopisenja"
-              className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold mb-1 text-muted-foreground">
-              Username TikTok
-            </label>
-            <input
-              type="text"
-              value={tiktok}
-              onChange={(e) => setTiktok(e.target.value)}
-              placeholder="@kopisenja.official"
-              className="w-full rounded-md border border-border bg-background px-3 py-1.5 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
-            />
-          </div>
-          <Button
-            type="submit"
-            disabled={submitting || !id || !nama}
-            className="w-full rounded-full text-xs font-semibold"
-          >
-            {submitting ? "Menyimpan..." : "Tambah Tenant"}
-          </Button>
-        </form>
-      </CardContent>
-    </Card>
   );
 }
