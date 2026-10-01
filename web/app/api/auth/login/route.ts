@@ -16,42 +16,55 @@ export async function POST(req: Request) {
       ]);
     }
 
-    // Validasi kredensial internal team secret
-    const validSecret = config.teamSecret;
-    if (password !== validSecret && password !== 'admin123') {
+    if (!config.supabaseUrl || !config.supabaseAnonKey) {
       return Response.json(
         {
-          title: 'UNAUTHORIZED',
-          status: 401,
-          detail: 'Password tidak valid. Gunakan TEAM_SECRET yang terdaftar.',
+          title: 'CONFIG_REQUIRED',
+          status: 503,
+          detail: 'BUTUH_SUPABASE_ANON_KEY',
           request_id: requestId,
         },
-        { status: 401 }
+        { status: 503 }
       );
     }
 
-    // Set session cookie
-    const cookieStore = await cookies();
-    const sessionToken = Buffer.from(
-      JSON.stringify({
-        email,
-        role: 'admin',
-        createdAt: new Date().toISOString(),
-      })
-    ).toString('base64');
+    // Autentikasi via Supabase Auth API
+    const authUrl = `${config.supabaseUrl}/auth/v1/token?grant_type=password`;
+    const res = await fetch(authUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        apikey: config.supabaseAnonKey,
+      },
+      body: JSON.stringify({ email, password }),
+    });
 
-    cookieStore.set('autososmed_session', sessionToken, {
+    const data = await res.json();
+    if (!res.ok) {
+      return Response.json(
+        {
+          title: 'UNAUTHORIZED',
+          status: res.status,
+          detail: data.error_description || data.msg || 'Autentikasi Supabase gagal.',
+          request_id: requestId,
+        },
+        { status: res.status }
+      );
+    }
+
+    const cookieStore = await cookies();
+    cookieStore.set('sb-access-token', data.access_token, {
       httpOnly: true,
       secure: process.env.NODE_ENV === 'production',
       sameSite: 'lax',
       path: '/',
-      maxAge: 60 * 60 * 24 * 7, // 7 hari
+      maxAge: data.expires_in || 3600,
     });
 
     return Response.json({
       data: {
-        user: { email, role: 'admin' },
-        message: 'Login berhasil',
+        user: data.user,
+        message: 'Login berhasil via Supabase',
       },
       request_id: requestId,
     });
