@@ -67,7 +67,7 @@ export async function POST(req: Request) {
           tenantId: j.tenant,
           platform: j.platform,
           slot: j.slot,
-          waktu: j.waktu,
+          waktu: j.waktu ?? '07:00',
           caption: j.caption,
           media: (body.media ?? [])[0] ?? '',
         })),
