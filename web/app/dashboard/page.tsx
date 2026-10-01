@@ -14,6 +14,10 @@ import {
   AlertCircle,
   Clock,
   Sparkles,
+  Play,
+  Eye,
+  ExternalLink,
+  X,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -61,6 +65,9 @@ export default function DashboardPage() {
   const [sessions, setSessions] = useState<Session[]>([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState<string>("all");
+  const [runningJobId, setRunningJobId] = useState<string | null>(null);
+  const [selectedEvidence, setSelectedEvidence] = useState<Job | null>(null);
+  const [executingAll, setExecutingAll] = useState(false);
 
   const fetchData = async () => {
     setLoading(true);
@@ -84,6 +91,44 @@ export default function DashboardPage() {
       console.error("Failed to fetch data:", err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRunJob = async (jobId: string) => {
+    setRunningJobId(jobId);
+    try {
+      const res = await fetch(`/api/jobs/${jobId}/run`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ dry_run: true }),
+      });
+      if (res.ok) {
+        await fetchData();
+      }
+    } catch (err) {
+      console.error("Failed to run job:", err);
+    } finally {
+      setRunningJobId(null);
+    }
+  };
+
+  const handleRunAllQueued = async () => {
+    const queued = jobs.filter((j) => j.status === "queued");
+    if (queued.length === 0) return;
+    setExecutingAll(true);
+    try {
+      for (const j of queued) {
+        await fetch(`/api/jobs/${j.id}/run`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dry_run: true }),
+        });
+      }
+      await fetchData();
+    } catch (err) {
+      console.error("Failed to run all queued:", err);
+    } finally {
+      setExecutingAll(false);
     }
   };
 
@@ -264,20 +309,33 @@ export default function DashboardPage() {
                     Jobs hasil fan-out campaign dengan delay anti-ban + jitter per platform
                   </CardDescription>
                 </div>
-                <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg text-xs font-medium">
-                  {["all", "queued", "running", "done", "failed"].map((st) => (
-                    <button
-                      key={st}
-                      onClick={() => setStatusFilter(st)}
-                      className={`px-3 py-1 rounded-md capitalize transition-colors ${
-                        statusFilter === st
-                          ? "bg-background text-foreground shadow-xs font-semibold"
-                          : "text-muted-foreground hover:text-foreground"
-                      }`}
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex items-center gap-1.5 bg-muted/60 p-1 rounded-lg text-xs font-medium">
+                    {["all", "queued", "running", "done", "failed"].map((st) => (
+                      <button
+                        key={st}
+                        onClick={() => setStatusFilter(st)}
+                        className={`px-3 py-1 rounded-md capitalize transition-colors ${
+                          statusFilter === st
+                            ? "bg-background text-foreground shadow-xs font-semibold"
+                            : "text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {st} {st !== "all" && `(${jobs.filter((j) => j.status === st).length})`}
+                      </button>
+                    ))}
+                  </div>
+                  {queuedJobs.length > 0 && (
+                    <Button
+                      size="sm"
+                      onClick={handleRunAllQueued}
+                      disabled={executingAll}
+                      className="rounded-lg text-xs shadow-xs"
                     >
-                      {st} {st !== "all" && `(${jobs.filter((j) => j.status === st).length})`}
-                    </button>
-                  ))}
+                      <Play className={`h-3.5 w-3.5 mr-1 ${executingAll ? "animate-spin" : ""}`} />
+                      {executingAll ? "Memproses Semua..." : `Jalankan Semua (${queuedJobs.length})`}
+                    </Button>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -291,12 +349,13 @@ export default function DashboardPage() {
                           <th className="px-4 py-3 text-left font-semibold">Platform</th>
                           <th className="px-4 py-3 text-left font-semibold">Varian Caption</th>
                           <th className="px-4 py-3 text-left font-semibold">Status</th>
+                          <th className="px-4 py-3 text-right font-semibold">Aksi</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-border">
                         {filteredJobs.length === 0 ? (
                           <tr>
-                            <td colSpan={5} className="px-4 py-16 text-center text-muted-foreground">
+                            <td colSpan={6} className="px-4 py-16 text-center text-muted-foreground">
                               Belum ada jobs dengan status ini. Buat campaign baru untuk fan-out antrean.
                             </td>
                           </tr>
@@ -340,6 +399,40 @@ export default function DashboardPage() {
                                   {job.status}
                                 </span>
                               </td>
+                              <td className="px-4 py-3 text-right whitespace-nowrap">
+                                {job.status === "queued" ? (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRunJob(job.id)}
+                                    disabled={runningJobId === job.id}
+                                    className="h-7 text-xs rounded-md px-2.5 hover:bg-primary hover:text-primary-foreground"
+                                  >
+                                    <Play className={`h-3 w-3 mr-1 ${runningJobId === job.id ? "animate-spin" : ""}`} />
+                                    {runningJobId === job.id ? "Running..." : "Run"}
+                                  </Button>
+                                ) : job.status === "done" ? (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => setSelectedEvidence(job)}
+                                    className="h-7 text-xs rounded-md px-2.5 text-primary hover:bg-primary/10"
+                                  >
+                                    <Eye className="h-3 w-3 mr-1" />
+                                    Bukti Post
+                                  </Button>
+                                ) : (
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleRunJob(job.id)}
+                                    disabled={runningJobId === job.id}
+                                    className="h-7 text-xs rounded-md px-2.5 text-muted-foreground"
+                                  >
+                                    Retry
+                                  </Button>
+                                )}
+                              </td>
                             </tr>
                           ))
                         )}
@@ -349,6 +442,64 @@ export default function DashboardPage() {
                 </div>
               </CardContent>
             </Card>
+
+            {/* Evidence Modal Popup */}
+            {selectedEvidence && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/80 backdrop-blur-xs p-4">
+                <div className="relative w-full max-w-lg rounded-2xl border bg-card p-6 shadow-2xl space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b">
+                    <div>
+                      <h3 className="font-bold text-lg text-foreground">Bukti Eksekusi Posting</h3>
+                      <p className="text-xs text-muted-foreground">
+                        {selectedEvidence.platform.toUpperCase()} • {selectedEvidence.tenantId} • Job {selectedEvidence.id}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setSelectedEvidence(null)}
+                      className="rounded-full p-1.5 hover:bg-muted text-muted-foreground hover:text-foreground"
+                    >
+                      <X className="h-5 w-5" />
+                    </button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="rounded-xl border bg-muted/30 p-2 overflow-hidden flex items-center justify-center">
+                      <img
+                        src={`/api/evidence/${selectedEvidence.id}`}
+                        alt="Screenshot Evidence"
+                        className="rounded-lg shadow-xs max-h-80 w-auto object-contain bg-background"
+                      />
+                    </div>
+
+                    <div className="p-3 rounded-lg bg-muted/30 border text-xs space-y-1">
+                      <span className="font-semibold block text-foreground">Varian Caption yang Diposting:</span>
+                      <p className="text-muted-foreground whitespace-pre-wrap">{selectedEvidence.caption}</p>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end gap-2 pt-2 border-t">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedEvidence(null)}
+                    >
+                      Tutup
+                    </Button>
+                    <Button size="sm" asChild>
+                      <a
+                        href={`https://${selectedEvidence.platform === "threads" ? "threads.net" : selectedEvidence.platform === "tiktok" ? "tiktok.com" : "instagram.com"}/@${selectedEvidence.tenantId}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1.5"
+                      >
+                        Buka Akun Target
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
