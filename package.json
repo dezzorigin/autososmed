@@ -1,0 +1,10 @@
+{
+  "name": "autososmed",
+  "private": true,
+  "version": "0.1.0",
+  "workspaces": ["web", "packages/*"],
+  "scripts": {
+    "test:scheduler": "npm test --workspace @autososmed/scheduler",
+    "dev:web": "npm run dev --workspace web"
+  }
+}

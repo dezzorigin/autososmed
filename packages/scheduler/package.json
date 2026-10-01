@@ -1,0 +1,12 @@
+{
+  "name": "@autososmed/scheduler",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "fanout.mjs",
+  "exports": {
+    ".": "./fanout.mjs"
+  },
+  "scripts": {
+    "test": "node --test fanout.test.mjs"
+  }
+}

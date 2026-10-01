@@ -1,0 +1,80 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Tenant {
+  id         String  @id // mis. kopi-a
+  nama       String
+  ig         String?
+  threads    String?
+  tiktok     String?
+  slotHarian Int     @default(3) @map("slot_harian")
+  aktif      Boolean @default(true)
+  createdAt  DateTime @default(now()) @map("created_at")
+  jobs       Job[]
+
+  @@map("tenants")
+}
+
+model Campaign {
+  id               String   @id @default(cuid())
+  nama             String
+  brief            String   @default("")
+  captionTemplate  String   @map("caption_template") @db.Text
+  media            String[] @default([])
+  targetTenantIds  String[] @map("target_tenant_ids")
+  platforms        String[] @default(["ig", "threads", "tiktok"])
+  windowStart      String   @default("07:00") @map("window_start")
+  windowEnd        String   @default("22:00") @map("window_end")
+  status           String   @default("draft") // draft|queued|running|done
+  createdAt        DateTime @default(now()) @map("created_at")
+  jobs             Job[]
+
+  @@map("campaigns")
+}
+
+model Job {
+  id         String   @id // tenant+platform+hash12
+  campaignId String   @map("campaign_id")
+  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  tenantId   String   @map("tenant_id")
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  platform   String
+  slot       Int
+  waktu      String // HH:MM
+  caption    String   @db.Text
+  media      String   @default("")
+  status     String   @default("queued") // queued|running|done|failed|skipped
+  attempts   Int      @default(0)
+  createdAt  DateTime @default(now()) @map("created_at")
+  evidence   Evidence?
+
+  @@index([status, platform, waktu])
+  @@map("jobs")
+}
+
+model Session {
+  id        String   @id // <platform>-<tenant>
+  platform  String
+  tenantId  String   @map("tenant_id")
+  status    String   @default("live") // live|dead
+  lastCheck DateTime @default(now()) @map("last_check")
+
+  @@map("sessions")
+}
+
+model Evidence {
+  jobId         String   @id @map("job_id")
+  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  executedAt    DateTime @default(now()) @map("executed_at")
+  screenshotPath String  @default("") @map("screenshot_path")
+  postUrl       String   @default("") @map("post_url")
+  status        String
+
+  @@map("evidence")
+}
