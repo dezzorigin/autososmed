@@ -7,74 +7,47 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Tenant {
-  id         String  @id // mis. kopi-a
-  nama       String
-  ig         String?
-  threads    String?
-  tiktok     String?
-  slotHarian Int     @default(3) @map("slot_harian")
-  aktif      Boolean @default(true)
-  createdAt  DateTime @default(now()) @map("created_at")
-  jobs       Job[]
+model Account {
+  id          String   @id @default(cuid())
+  platform    String   // ig | threads | tiktok
+  username    String
+  sessionJson String?  @map("session_json") @db.Text
+  status      String   @default("connected") // connected | expired | failed
+  lastCheck   DateTime @default(now()) @map("last_check")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+  posts       Post[]
 
-  @@map("tenants")
+  @@unique([platform, username])
+  @@map("accounts")
 }
 
-model Campaign {
-  id               String   @id @default(cuid())
-  nama             String
-  brief            String   @default("")
-  captionTemplate  String   @map("caption_template") @db.Text
-  media            String[] @default([])
-  targetTenantIds  String[] @map("target_tenant_ids")
-  platforms        String[] @default(["ig", "threads", "tiktok"])
-  windowStart      String   @default("07:00") @map("window_start")
-  windowEnd        String   @default("22:00") @map("window_end")
-  status           String   @default("draft") // draft|queued|running|done
-  createdAt        DateTime @default(now()) @map("created_at")
-  jobs             Job[]
+model Media {
+  id        String   @id @default(cuid())
+  filename  String
+  path      String
+  mime      String
+  createdAt DateTime @default(now()) @map("created_at")
+  posts     Post[]
 
-  @@map("campaigns")
+  @@map("media")
 }
 
-model Job {
-  id         String   @id // tenant+platform+hash12
-  campaignId String   @map("campaign_id")
-  campaign   Campaign @relation(fields: [campaignId], references: [id], onDelete: Cascade)
-  tenantId   String   @map("tenant_id")
-  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  platform   String
-  slot       Int
-  waktu      String // HH:MM
-  caption    String   @db.Text
-  media      String   @default("")
-  status     String   @default("queued") // queued|running|done|failed|skipped
-  attempts   Int      @default(0)
-  createdAt  DateTime @default(now()) @map("created_at")
-  evidence   Evidence?
+model Post {
+  id              String    @id @default(cuid())
+  accountId       String?   @map("account_id")
+  account         Account?  @relation(fields: [accountId], references: [id], onDelete: SetNull)
+  mediaId         String?   @map("media_id")
+  media           Media?    @relation(fields: [mediaId], references: [id], onDelete: SetNull)
+  campaign        String    @default("")
+  caption         String    @db.Text
+  scheduledAt     DateTime  @default(now()) @map("scheduled_at")
+  status          String    @default("scheduled") // scheduled | processing | posted | failed
+  evidencePath    String?   @map("evidence_path")
+  responseMessage String?   @map("response_message") @db.Text
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
 
-  @@index([status, platform, waktu])
-  @@map("jobs")
-}
-
-model Session {
-  id        String   @id // <platform>-<tenant>
-  platform  String
-  tenantId  String   @map("tenant_id")
-  status    String   @default("live") // live|dead
-  lastCheck DateTime @default(now()) @map("last_check")
-
-  @@map("sessions")
-}
-
-model Evidence {
-  jobId         String   @id @map("job_id")
-  job           Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
-  executedAt    DateTime @default(now()) @map("executed_at")
-  screenshotPath String  @default("") @map("screenshot_path")
-  postUrl       String   @default("") @map("post_url")
-  status        String
-
-  @@map("evidence")
+  @@index([status, scheduledAt])
+  @@map("posts")
 }
