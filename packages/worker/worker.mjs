@@ -1,13 +1,20 @@
-import 'dotenv/config';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import dotenv from 'dotenv';
 import { PrismaClient } from '@prisma/client';
 import { runJob } from './runner.mjs';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const rootDir = path.resolve(__dirname, '../../');
+dotenv.config({ path: path.resolve(rootDir, '.env') });
 
 const prisma = new PrismaClient();
 
 const args = process.argv.slice(2);
 const isOnce = args.includes('--once');
-const isDryRun = args.includes('--dry-run') || process.env.DRY_RUN === 'true';
-const pollIntervalMs = 15000; // 15 detik
+const isDryRun = args.includes('--dry-run') || process.env.DRY_RUN !== 'false';
+const pollIntervalMs = 5000; // 5 detik untuk responsive queue polling
 
 console.log(`=======================================================`);
 console.log(`🤖 AutoSosmed Background Worker Daemon Started`);

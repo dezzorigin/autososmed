@@ -113,17 +113,41 @@ const Divider: React.FC = () => (
 const LoginForm: React.FC<{ onSuccess: () => void }> = ({ onSuccess }) => {
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
+  const [loading, setLoading] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Dummy auth: any email + password combination works
-    if (email && password) {
-      onSuccess();
+    if (!email || !password) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        onSuccess();
+      } else {
+        setError(data?.detail || "Gagal masuk. Periksa email dan password.");
+      }
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    } finally {
+      setLoading(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit}>
+      {error && (
+        <div className="mb-4 rounded-md bg-destructive/10 p-3 text-xs font-medium text-destructive border border-destructive/20">
+          {error}
+        </div>
+      )}
       <div className="mb-3">
         <label
           htmlFor="email-input"

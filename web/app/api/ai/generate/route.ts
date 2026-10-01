@@ -12,7 +12,7 @@ export async function POST(req: Request) {
     }
 
     const aiGatewayUrl = config.aiGatewayUrl || 'http://localhost:20128/v1';
-    const aiGatewayKey = process.env.AI_GATEWAY_KEY || '';
+    const aiGatewayKey = process.env.OPENAI_API_KEY || process.env.AI_GATEWAY_KEY || '';
 
     const systemPrompt = `Kamu adalah pakar copywriting media sosial untuk multi-brand SaaS.
 Tugasmu adalah menghasilkan SATU template caption format SPINTAX berkualitas tinggi berdasarkan brief yang diberikan.

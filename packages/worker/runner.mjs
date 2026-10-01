@@ -1,7 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { fileURLToPath } from 'url';
-import 'dotenv/config';
+import dotenv from 'dotenv';
 import { chromium } from 'playwright';
 import { PrismaClient } from '@prisma/client';
 import { generateMockupScreenshot, sendDiscordNotification } from './evidence.mjs';
@@ -12,6 +12,7 @@ import { postToTikTok } from './platforms/tiktok.mjs';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.resolve(__dirname, '../../');
+dotenv.config({ path: path.resolve(rootDir, '.env') });
 const sessionsDir = path.resolve(rootDir, 'sessions');
 const evidenceDir = path.resolve(rootDir, 'evidence');
 
