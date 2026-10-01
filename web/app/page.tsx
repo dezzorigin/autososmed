@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { ArrowRight, CheckCircle2 } from "lucide-react";
+import { ArrowRight, CheckCircle2, Zap } from "lucide-react";
+import IntegrationCardDemo from "@/components/ui/integration-card";
 
 export default function LandingPage() {
   return (
@@ -56,6 +57,11 @@ export default function LandingPage() {
             </div>
             <div className="mt-12 text-sm text-muted-foreground">
               Trusted by creators, teams and developers worldwide
+            </div>
+
+            {/* Interactive Graph Showcase */}
+            <div className="mt-16 w-full max-w-2xl mx-auto">
+              <IntegrationCardDemo />
             </div>
           </div>
         </div>
