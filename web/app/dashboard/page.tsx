@@ -666,6 +666,38 @@ function CampaignComposer({ onSuccess, tenants }: { onSuccess: () => void; tenan
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
 
+  // AI Generator state
+  const [aiBrief, setAiBrief] = useState("");
+  const [generatingAi, setGeneratingAi] = useState(false);
+  const [aiError, setAiError] = useState<string | null>(null);
+
+  const handleGenerateAi = async () => {
+    if (!aiBrief.trim()) return;
+    setGeneratingAi(true);
+    setAiError(null);
+    try {
+      const res = await fetch("/api/ai/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ brief: aiBrief }),
+      });
+      const data = await res.json();
+      if (res.ok && data?.data?.template) {
+        setCaptionTemplate(data.data.template);
+        if (!nama) {
+          setNama(aiBrief.slice(0, 30));
+        }
+      } else {
+        setAiError(data.detail || "Gagal generate template AI");
+      }
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : String(err);
+      setAiError(errMsg);
+    } finally {
+      setGeneratingAi(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nama || !captionTemplate || selectedTenants.length === 0) return;
@@ -734,6 +766,48 @@ function CampaignComposer({ onSuccess, tenants }: { onSuccess: () => void; tenan
               className="w-full rounded-lg border border-border bg-background px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-primary shadow-xs"
               required
             />
+          </div>
+
+          {/* AI Generator Box */}
+          <div className="rounded-xl border border-primary/20 bg-primary/5 p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" />
+                AI Spintax Generator (9router / Gemini 3.8 Flash)
+              </span>
+              <span className="text-[10px] text-muted-foreground bg-background/80 px-2 py-0.5 rounded-full border">
+                Local Gateway
+              </span>
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2">
+              <input
+                type="text"
+                value={aiBrief}
+                onChange={(e) => setAiBrief(e.target.value)}
+                placeholder="Ide campaign, misal: Promo kopi susu gula aren diskon 30% weekend..."
+                className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs focus:ring-1 focus:ring-primary focus:outline-none"
+              />
+              <Button
+                type="button"
+                size="sm"
+                onClick={handleGenerateAi}
+                disabled={generatingAi || !aiBrief.trim()}
+                className="rounded-lg text-xs font-semibold whitespace-nowrap"
+              >
+                {generatingAi ? (
+                  <>
+                    <RefreshCw className="h-3 w-3 mr-1 animate-spin" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="h-3 w-3 mr-1" />
+                    Generate Spintax
+                  </>
+                )}
+              </Button>
+            </div>
+            {aiError && <p className="text-xs text-red-500 font-medium">{aiError}</p>}
           </div>
 
           <div>
