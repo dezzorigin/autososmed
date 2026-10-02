@@ -1,47 +1,32 @@
-import { cookies } from 'next/headers';
+import { getSupabaseServerClient } from '@/lib/supabase';
 import { toResponse } from '@/lib/errors';
 
-export async function GET() {
+export async function GET(req: Request) {
   const requestId = crypto.randomUUID();
   try {
-    const cookieStore = await cookies();
-    const token = cookieStore.get('autososmed_session')?.value;
-
+    const { supabase, token } = await getSupabaseServerClient(req);
     if (!token) {
       return Response.json(
-        {
-          title: 'UNAUTHORIZED',
-          status: 401,
-          detail: 'Belum terautentikasi.',
-          request_id: requestId,
-        },
+        { title: 'UNAUTHORIZED', status: 401, detail: 'Not logged in' },
         { status: 401 }
       );
     }
 
-    let user;
-    try {
-      user = JSON.parse(Buffer.from(token, 'base64').toString('utf8'));
-    } catch {
+    const { data: { user }, error } = await supabase.auth.getUser();
+
+    if (error || !user) {
       return Response.json(
-        {
-          title: 'UNAUTHORIZED',
-          status: 401,
-          detail: 'Token sesi tidak valid.',
-          request_id: requestId,
-        },
+        { title: 'UNAUTHORIZED', status: 401, detail: 'Invalid session' },
         { status: 401 }
       );
     }
 
     return Response.json({
-      data: {
-        authenticated: true,
-        user,
-      },
+      data: { user: { id: user.id, email: user.email } },
       request_id: requestId,
     });
   } catch (err) {
     return toResponse(err, requestId);
   }
 }
+
